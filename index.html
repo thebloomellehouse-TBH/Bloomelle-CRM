@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bloomelle CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<style>
+:root{--bg:#faf3f2;--card:#fff;--tx:#2b1218;--mu:#7a5f64;--pr:#6d1a30;--on:#fff;--ac:#c98f84;--ln:#ecdcda;--bd:#b3261e;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b0d11;--card:#2a161c;--tx:#f6e9e7;--mu:#bfa3a6;--pr:#e0a89c;--on:#1b0d11;--ln:#43262e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.top{background:#4a0f20;color:#f6e3df;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}.top b{font:700 18px Georgia,serif;color:#e8b9ad}
+.top button{background:none;border:0;color:inherit;padding:6px 10px;border-radius:8px;font:inherit;cursor:pointer}.top button.on{background:#6d1a30}
+main{max-width:1100px;margin:auto;padding:16px}h2,h1{font-family:Georgia,serif;color:var(--pr);margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}.k b{display:block;font-size:26px;color:var(--pr)}.k span,small{color:var(--mu);font-size:13px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+input,select,textarea{font:inherit;padding:9px 10px;border:1px solid var(--ln);border-radius:8px;background:var(--card);color:var(--tx);min-width:0;width:100%;margin:4px 0}input[type=checkbox]{width:auto}
+.b,.s{border-radius:8px;padding:9px 14px;font:inherit;cursor:pointer;border:1px solid var(--pr)}.b{background:var(--pr);color:var(--on)}.s{background:none;color:var(--tx);border-color:var(--ln)}.b.o{background:none;color:var(--bd);border-color:var(--bd)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:700px}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--ln);font-size:14px;vertical-align:top}th{color:var(--mu)}
+.t{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;background:var(--ln)}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}.bar span:first-child{width:110px;flex-shrink:0}.bar i{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--pr),var(--ac));min-width:4px}
+.tm{font:700 20px ui-monospace,monospace;color:var(--bd)}.f{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.tc{max-height:100px;overflow:auto;font-size:13px;color:var(--mu);border:1px solid var(--ln);border-radius:8px;padding:8px;margin:8px 0}
+@media(max-width:700px){main{padding:12px}}
+</style></head><body><div id="app"></div>
+<script>
+const sb=supabase.createClient(CFG.url,CFG.key);
+const SV=["Bridal Makeup","Party Makeup","Hair Styling","Nail Extensions","Pre-Bridal","Beauty Parlour at Home"],AR=["Civil Lines","Sipri Bazaar","Nandanpura","Medical College Road","Gwalior Road","Babina","Orchha Road"],SRC=["Website","Meta Ads","Google Ads","WhatsApp","Instagram","Referral","Manual"],ST=["New","Assigned","Accepted","Started","Completed","Lost"],RS=["Not available at that time","Location too far","Skill / service mismatch","Personal emergency","Customer asked for change","Other"],SHARE=0.7;
+const $=i=>document.getElementById(i),esc=x=>String(x??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])),rs=n=>"₹"+Math.round(n||0).toLocaleString("en-IN");
+let U,ROLE,C,tab="Dashboard",chs=[],L=[],EV=[],FS="",FT="";
+const opts=(a,s)=>a.map(x=>`<option${x===s?" selected":""}>${esc(x)}</option>`).join("");
+const chk=(id,a)=>`<div class="row" id="${id}">${a.map(x=>`<label><input type="checkbox" value="${x}"> ${x}</label>`).join("")}</div>`;
+const picked=id=>[...document.querySelectorAll("#"+id+" input:checked")].map(x=>x.value);
+const cn=id=>esc(chs.find(c=>c.id===id)?.name||"—");
+const cnt=(a,f)=>a.reduce((o,x)=>{const k=f(x);o[k]=(o[k]||0)+1;return o},{});
+const bars=o=>{const m=Math.max(1,...Object.values(o));return Object.keys(o).map(k=>`<div class="bar"><span>${esc(k)}</span><i style="width:${o[k]/m*60}%"></i><span>${o[k]}</span></div>`).join("")||"<small>No data</small>"};
+const shell=(tabs,body)=>`<div class="top"><b>Bloomelle ${ROLE==="staff"?"CRM":"Champ"}</b><span>${tabs.map(t=>`<button class="${t===tab?"on":""}" onclick="tab='${t}';draw()">${t}</button>`).join("")}<button onclick="sb.auth.signOut().then(init)">Logout</button></span></div><main>${body}</main>`;
+async function init(){
+ const{data:{session}}=await sb.auth.getSession();U=session?.user;
+ if(!U)return authView();
+ const st=await sb.from("staff").select("user_id").eq("user_id",U.id).maybeSingle();
+ if(st.data){ROLE="staff";tab="Dashboard"}
+ else{const c=await sb.from("champs").select("*").eq("id",U.id).maybeSingle();C=c.data;if(!C){await sb.auth.signOut();return authView("No profile found for this login.")}ROLE="champ";tab="Offers"}
+ sb.channel("rt").on("postgres_changes",{event:"*",schema:"public",table:"leads"},load).subscribe();
+ load();
+}
+async function load(){
+ L=(await sb.from("leads").select("*").order("created_at",{ascending:false}).limit(1000)).data||[];
+ chs=(await sb.from("champs").select("*").order("created_at",{ascending:false})).data||[];
+ if(ROLE==="champ"){C=chs[0];EV=(await sb.from("events").select("*").order("created_at",{ascending:false}).limit(300)).data||[]}
+ draw();
+}
+function authView(msg){ROLE=null;$("app").innerHTML=`<div class="card" style="max-width:420px;margin:40px auto"><h1>Bloomelle House</h1><small>${msg||"Executive and Champ login"}</small><input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password"><div class="row"><button class="b" onclick="login()">Login</button><button class="s" onclick="regView()">Register as Champ</button></div></div>`}
+async function login(){const{error}=await sb.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});error?alert(error.message):init()}
+function regView(){$("app").innerHTML=`<div class="card" style="max-width:640px;margin:20px auto"><h1>Champ onboarding</h1><div class="f"><label>Full name<input id="rn"></label><label>Mobile<input id="rp" inputmode="numeric" maxlength="10"></label><label>Email<input id="re" type="email"></label><label>Password (6+ chars)<input id="rw" type="password"></label><label>Aadhaar number<input id="ra" inputmode="numeric" maxlength="12"></label><label>Aadhaar copy<input id="rf" type="file" accept="image/*,.pdf"></label></div><b>Service areas</b>${chk("rar",AR)}<b>Skills</b>${chk("rsk",SV)}<div class="tc"><b>Terms &amp; Conditions</b><br>1. The Champ works as an independent partner at customer locations as assigned. 2. All details and ID proof must be genuine; false details lead to removal. 3. Use approved products and follow hygiene standards. 4. Be punctual and courteous and keep customer data private. 5. Payouts follow the Bloomelle partner payout policy. 6. Bloomelle may suspend the partnership for policy violations.</div><label><input type="checkbox" id="rt"> I accept the Terms &amp; Conditions</label><div class="row" style="margin-top:10px"><button class="b" onclick="reg()">Submit application</button><button class="s" onclick="init()">Back</button></div><small>Only the last 4 Aadhaar digits are stored. The document goes to a private, access-controlled folder.</small></div>`}
+async function reg(){
+ const v=i=>$(i).value.trim(),f=$("rf").files[0],ar=picked("rar"),sk=picked("rsk"),a=v("ra");
+ if(!v("rn")||!/^\d{10}$/.test(v("rp"))||!/^\S+@\S+\.\S+$/.test(v("re"))||v("rw").length<6||!/^\d{12}$/.test(a)||!f||!ar.length||!sk.length)return alert("Please fill every field correctly (10-digit mobile, 12-digit Aadhaar, file, areas, skills).");
+ if(!$("rt").checked)return alert("Please accept the Terms & Conditions");
+ const{data,error}=await sb.auth.signUp({email:v("re"),password:v("rw")});
+ if(error)return alert(error.message);
+ if(!data.session)return alert("Turn OFF 'Confirm email' in Supabase > Authentication > Providers > Email, then register again.");
+ const id=data.user.id,up=await sb.storage.from("kyc").upload(`${id}/aadhaar-${Date.now()}.${f.name.split(".").pop()}`,f);
+ if(up.error)return alert(up.error.message);
+ const ins=await sb.from("champs").insert({id,name:v("rn"),phone:v("rp"),email:v("re"),aadhaar_last4:a.slice(-4),areas:ar,skills:sk,terms_at:new Date().toISOString()});
+ if(ins.error)return alert(ins.error.message);
+ init();
+}
+function draw(){
+ if(ROLE==="staff"){const V={Dashboard:dash,Leads:leads,Champs:champs,Reports:reports};$("app").innerHTML=shell(Object.keys(V),V[tab]())}
+ else if(ROLE==="champ"){
+  if(C.status!=="approved"){$("app").innerHTML=shell([],`<div class="card"><h2>Application ${esc(C.status)}</h2>${C.status==="pending"?"Your details are with the Bloomelle team. You will see leads here once approved.":"Please contact Bloomelle support."}</div>`);return}
+  const V={Offers:offers,Earnings:earnings,Performance:perf};$("app").innerHTML=shell(Object.keys(V),V[tab]())}
+}
+function dash(){const b=L.filter(l=>l.status==="Completed").length,n=L.filter(l=>l.status==="New").length;
+ return`<h2>Dashboard</h2><div class="grid"><div class="card k"><b>${L.length}</b><span>Total leads</span></div><div class="card k"><b>${n}</b><span>Need allocation</span></div><div class="card k"><b>${b}</b><span>Completed</span></div><div class="card k"><b>${L.length?Math.round(b/L.length*100):0}%</b><span>Conversion</span></div><div class="card k"><b>${chs.filter(c=>c.status==="approved").length}</b><span>Active champs</span></div><div class="card k"><b>${chs.filter(c=>c.status==="pending").length}</b><span>Pending approval</span></div></div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))"><div class="card"><b>By source</b>${bars(cnt(L,l=>l.source||"?"))}</div><div class="card"><b>By service</b>${bars(cnt(L,l=>l.service||"?"))}</div></div>`}
+function leads(){const ap=chs.filter(c=>c.status==="approved");
+ return`<h2>Leads</h2><div class="card"><div class="f"><label>Name<input id="ln"></label><label>Phone<input id="lp" inputmode="numeric" maxlength="10"></label><label>Source<select id="ls">${opts(SRC,"Manual")}</select></label><label>Service<select id="lv">${opts(SV)}</select></label><label>Area<select id="la">${opts(AR)}</select></label></div><button class="b" style="margin-top:8px" onclick="addLead()">Add lead</button></div><div class="row"><select style="width:auto" onchange="FS=this.value;draw()"><option value="">All sources</option>${opts(SRC,FS)}</select><select style="width:auto" onchange="FT=this.value;draw()"><option value="">All status</option>${opts(ST,FT)}</select></div><div class="card tw"><table><tr><th>Date</th><th>Lead</th><th>Source</th><th>Service / Area</th><th>Status</th><th>Champ</th><th>Allocate</th></tr>${L.filter(l=>(!FS||l.source===FS)&&(!FT||l.status===FT)).map(l=>`<tr><td>${l.created_at.slice(0,10)}</td><td>${esc(l.name)}<br><small>${esc(l.phone)}</small></td><td>${esc(l.source)}</td><td>${esc(l.service)}<br><small>${esc(l.area)}</small></td><td><span class="t">${l.status}</span>${l.reject_reason?`<br><small>Last reject: ${esc(l.reject_reason)}</small>`:""}</td><td>${cn(l.champ_id)}</td><td>${["New","Assigned"].includes(l.status)?`<select onchange="asg(${l.id},this.value)"><option value="">Allocate…</option><option value="auto">Auto (round robin)</option>${ap.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select>`:""}<button class="s" onclick="setSt(${l.id},'Lost')">Lost</button></td></tr>`).join("")}</table></div>`}
+async function addLead(){const n=$("ln").value.trim(),p=$("lp").value.trim();if(!n||!/^\d{10}$/.test(p))return alert("Enter name and a 10-digit phone");const{error}=await sb.from("leads").insert({name:n,phone:p,source:$("ls").value,service:$("lv").value,area:$("la").value});error?alert(error.message):load()}
+async function asg(id,v){if(!v)return;const{error}=await sb.rpc("staff_assign",{p_lead:id,p_champ:v==="auto"?null:v});if(error)alert(error.message);load()}
+async function setSt(id,s){await sb.from("leads").update({status:s,champ_id:null,offer_expires:null}).eq("id",id);load()}
+function champs(){return`<h2>Champs</h2><div class="card tw"><table><tr><th>Champ</th><th>Contact</th><th>Aadhaar</th><th>Areas / Skills</th><th>Status</th><th></th></tr>${chs.map(c=>`<tr><td>${esc(c.name)}</td><td>${esc(c.phone)}<br><small>${esc(c.email)}</small></td><td>XXXX XXXX ${esc(c.aadhaar_last4)}<br><button class="s" onclick="viewId('${c.id}')">View ID</button></td><td>${esc((c.areas||[]).join(", "))}<br><small>${esc((c.skills||[]).join(", "))}</small></td><td><span class="t">${c.status}</span></td><td>${c.status!=="approved"?`<button class="b" onclick="cs('${c.id}','approved')">Approve</button>`:`<button class="s" onclick="cs('${c.id}','suspended')">Suspend</button>`}${c.status==="pending"?` <button class="b o" onclick="cs('${c.id}','rejected')">Reject</button>`:""}</td></tr>`).join("")}</table></div>`}
+async function cs(id,s){await sb.from("champs").update({status:s}).eq("id",id);load()}
+async function viewId(id){const{data}=await sb.storage.from("kyc").list(id);if(!data?.length)return alert("No document found");const s=await sb.storage.from("kyc").createSignedUrl(`${id}/${data[0].name}`,120);window.open(s.data.signedUrl)}
+function reports(){const src=cnt(L,l=>l.source||"?"),cv={};Object.keys(src).forEach(k=>cv[k]=Math.round(L.filter(l=>l.source===k&&l.status==="Completed").length/src[k]*100));
+ return`<h2>Reports</h2><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))"><div class="card"><b>Leads by source</b>${bars(src)}</div><div class="card"><b>Conversion % by source</b>${bars(cv)}</div><div class="card"><b>Pipeline</b>${bars(cnt(L,l=>l.status))}</div><div class="card"><b>Demand by area</b>${bars(cnt(L,l=>l.area||"?"))}</div><div class="card"><b>Leads per champ</b>${bars(cnt(L.filter(l=>l.champ_id),l=>chs.find(c=>c.id===l.champ_id)?.name||"?"))}</div><div class="card"><b>Revenue (completed)</b><div class="k"><b>${rs(L.filter(l=>l.status==="Completed").reduce((a,l)=>a+Number(l.amount),0))}</b></div></div></div><button class="s" onclick="csv()">Download leads CSV</button>`}
+function csv(){const r=["Date,Name,Phone,Source,Service,Area,Status,Amount"].concat(L.map(l=>[l.created_at.slice(0,10),l.name,l.phone,l.source,l.service,l.area,l.status,l.amount].map(x=>`"${String(x??"").replace(/"/g,'""')}"`).join(",")));const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(r.join("\n"));a.download="leads.csv";a.click()}
+function offers(){const o=L.filter(l=>l.status==="Assigned"),j=L.filter(l=>["Accepted","Started"].includes(l.status));
+ return`<div class="row"><h2 style="margin:0;flex:1">Lead offers</h2><label><input type="checkbox" ${C.online?"checked":""} onchange="sb.rpc('set_online',{p:this.checked}).then(load)"> Online</label></div>${o.map(l=>`<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(l.service)}</b><span class="tm" data-exp="${l.offer_expires}"></span></div>${esc(l.name)} · ${esc(l.area)}<br><small>Source: ${esc(l.source)}</small><div class="row" style="margin-top:8px"><select id="rr${l.id}"><option value="">Reject reason…</option>${opts(RS)}</select></div><div class="row"><button class="b o" onclick="resp(${l.id},false)">Reject</button><button class="b" onclick="resp(${l.id},true)">Accept</button></div></div>`).join("")||'<div class="card">No new offers.</div>'}<h2>My jobs</h2>${j.map(l=>`<div class="card"><b>${esc(l.service)}</b> <span class="t">${l.status}</span><br>${esc(l.name)} · ${esc(l.area)}<div class="row" style="margin-top:8px"><a class="s" style="padding:9px 14px;border-radius:8px;border:1px solid var(--ln);color:inherit;text-decoration:none" href="tel:${esc(l.phone)}">Call</a><button class="b" onclick="adv(${l.id},'${l.status}')">${l.status==="Accepted"?"Start service":"Finish & collect"}</button></div></div>`).join("")||'<div class="card"><small>No active jobs.</small></div>'}`}
+async function resp(id,ok){let r=null;if(!ok){r=$("rr"+id).value;if(!r)return alert("Please select a reason");if(r==="Other"){r=prompt("Add a short note");if(!r)return}}
+ const{error}=await sb.rpc("respond_offer",{p_lead:id,p_accept:ok,p_reason:r});if(error)alert(error.message);load()}
+async function adv(id,s){let a=null;if(s==="Started"){a=prompt("Amount collected from customer (₹)");if(a===null||isNaN(+a))return}
+ const{error}=await sb.rpc("advance_job",{p_lead:id,p_amount:a?+a:null});if(error)alert(error.message);load()}
+function earnings(){const d=L.filter(l=>l.status==="Completed"),t=d.reduce((a,l)=>a+Number(l.amount)*SHARE,0);
+ return`<h2>Earnings</h2><div class="grid"><div class="card k"><b>${rs(t)}</b><span>Total earned (${SHARE*100}% share)</span></div><div class="card k"><b>${d.length}</b><span>Jobs completed</span></div></div><div class="card">${d.map(l=>`<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--ln);padding:6px 0"><span>${esc(l.service)}<br><small>${esc(l.name)} · ${l.created_at.slice(0,10)}</small></span><b>${rs(l.amount*SHARE)}</b></div>`).join("")||"<small>No completed jobs yet.</small>"}</div><small>Payout history and settlement are managed by the executive.</small>`}
+function perf(){const k=EV.reduce((o,e)=>(o[e.kind]=(o[e.kind]||0)+1,o),{}),a=k.accepted||0,r=k.rejected||0,m=k.missed||0,tot=a+r+m;
+ return`<h2>My performance</h2><div class="grid"><div class="card k"><b>${tot?Math.round(a/tot*100):0}%</b><span>Acceptance rate</span></div><div class="card k"><b>${k.completed||0}</b><span>Completed</span></div><div class="card k"><b>${r}</b><span>Rejected</span></div><div class="card k"><b>${m}</b><span>Missed (timeout)</span></div></div><div class="card"><b>Recent activity</b>${EV.slice(0,12).map(e=>`<div style="padding:6px 0;border-bottom:1px solid var(--ln)">${esc(e.kind)}${e.note?` · ${esc(e.note)}`:""}<br><small>${new Date(e.created_at).toLocaleString("en-IN")}</small></div>`).join("")||"<small>No activity yet.</small>"}</div>`}
+setInterval(()=>document.querySelectorAll("[data-exp]").forEach(e=>{const s=Math.max(0,Math.floor((new Date(e.dataset.exp)-Date.now())/1000));e.textContent=Math.floor(s/60)+":"+("0"+s%60).slice(-2)}),1000);
+init();
+</script></body></html>
